@@ -2,8 +2,6 @@
 import { questions } from "./questions.js";
 import { findResult } from "./results.js";
 import { initParallaxBg, setParallaxBg, clearParallaxBg } from "./parallax-bg.js";
-import { sendMessageToUser, uploadAndGetAttachment } from "./vk-api.js";
-import { getVkUserInfo } from "./vk-bridge.js";
 import { captureResultScreenshot } from "./screenshot.js";
 
 // === Состояние ===
@@ -154,78 +152,28 @@ function downloadBlob(blob, filename) {
 async function sendResultToUser() {
   if (!state.result) return;
 
+  // Пытаемся сделать скриншот через Canvas (без html2canvas)
+  let imageBlob = null;
   try {
-    // 1. Получаем информацию о пользователе через VK Bridge
-    const userInfo = await getVkUserInfo();
-    if (!userInfo || !userInfo.id) {
-      console.log("Не удалось получить ID пользователя — пропускаем отправку ЛС");
-      return;
-    }
-
-    // 2. Пытаемся сделать скриншот через Canvas (без html2canvas)
-    let imageBlob = null;
+    // Сначала пробуем новый метод с фоновым изображением и эллипсом
+    imageBlob = await captureResultScreenshot(state.result);
+    console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
+  } catch (screenshotError) {
+    console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
+    // Fallback: используем старый генератор изображения
     try {
-      // Сначала пробуем новый метод с фоновым изображением и эллипсом
-      imageBlob = await captureResultScreenshot(state.result);
-      console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
-    } catch (screenshotError) {
-      console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
-      // Fallback: используем старый генератор изображения
-      try {
-        imageBlob = await generateResultImage(state.result);
-        console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
-      } catch (fallbackError) {
-        console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
-        alert("Ошибка создания изображения: " + fallbackError.message);
-      }
+      imageBlob = await generateResultImage(state.result);
+      console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
+    } catch (fallbackError) {
+      console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
+      alert("Ошибка создания изображения: " + fallbackError.message);
     }
+  }
 
-    // Автоматически скачиваем скриншот на устройство пользователя
-    if (imageBlob) {
-      downloadBlob(imageBlob, "wand-result.png");
-      console.log("[sendResult] Скриншот скачан на устройство");
-    }
-
-    // 3. Загружаем изображение на сервер ВК (если удалось создать)
-    let attachment = null;
-    if (imageBlob) {
-      try {
-        const uploadResult = await uploadAndGetAttachment(imageBlob);
-        attachment = uploadResult.attachment;
-        console.log("[sendResult] Изображение загружено в ВК, attachment:", attachment);
-      } catch (uploadError) {
-        console.error("[sendResult] Ошибка загрузки изображения в ВК:", uploadError);
-        // uploadError может быть Error, объектом VK Bridge или строкой
-        // Извлекаем понятное сообщение об ошибке
-        const errorMsg = uploadError?.message
-          || uploadError?.error_msg
-          || uploadError?.error?.error_msg
-          || (typeof uploadError === "string" ? uploadError : JSON.stringify(uploadError));
-        // Сообщение отправится без attachment — не показываем alert
-      }
-    } else {
-      console.warn("[sendResult] Изображение не создано — отправляем без attachment");
-    }
-
-    // 4. Формируем текст сообщения
-    const message = `🪄 Олливандер помог подобрать тебе волшебную палочку!\n\n` +
-      `✨ ${state.result.title}\n` +
-      `📏 Длина: ${state.result.length}\n` +
-      `🔄 Упругость: ${state.result.flexibility}\n\n` +
-      `${state.result.description}\n\n` +
-      `Пройти тест: https://vk.com/app54654657`;
-
-    // 5. Отправляем сообщение с прикреплённым скриншотом
-    try {
-      await sendMessageToUser(userInfo.id, message, attachment);
-      console.log("[sendResult] Сообщение отправлено пользователю", userInfo.id, "с attachment:", attachment);
-    } catch (sendError) {
-      console.error("[sendResult] Ошибка отправки сообщения:", sendError);
-      alert("Ошибка отправки сообщения: " + sendError.message);
-    }
-  } catch (error) {
-    console.error("[sendResult] Общая ошибка:", error);
-    alert("Общая ошибка: " + error.message);
+  // Автоматически скачиваем скриншот на устройство пользователя
+  if (imageBlob) {
+    downloadBlob(imageBlob, "wand-result.png");
+    console.log("[sendResult] Скриншот скачан на устройство");
   }
 }
 
