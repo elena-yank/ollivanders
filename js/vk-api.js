@@ -41,25 +41,86 @@ function callVkApi(method, params = {}) {
 }
 
 /**
- * Загружает Blob на VK upload URL через XMLHttpRequest (обходит CORS)
- * VK upload серверы не поддерживают CORS для fetch, но работают с XHR
+ * Загружает Blob на VK upload URL через скрытый iframe (обходит CORS)
+ * VK upload серверы не поддерживают CORS, поэтому XHR/fetch не работают.
+ * Используем старый трюк: <form> с target="iframe" + submit()
  */
 function uploadViaXHR(url, formData) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url, true);
-    xhr.onload = function () {
+    const iframeId = `vk_upload_iframe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Создаём скрытый iframe
+    const iframe = document.createElement("iframe");
+    iframe.id = iframeId;
+    iframe.name = iframeId;
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    // Создаём форму
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = url;
+    form.enctype = "multipart/form-data";
+    form.target = iframeId;
+    form.style.display = "none";
+
+    // Добавляем поля из formData в форму
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof Blob || value instanceof File) {
+        // Для файлов используем input[type=file]
+        const input = document.createElement("input");
+        input.type = "file";
+        input.name = key;
+        input.style.display = "none";
+
+        // Создаём File из Blob
+        const file = new File([value], "result.png", { type: "image/png" });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+
+        form.appendChild(input);
+      } else {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      }
+    }
+
+    document.body.appendChild(form);
+
+    // Обработчик загрузки iframe
+    let timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Upload timeout"));
+    }, 30000);
+
+    function cleanup() {
+      clearTimeout(timer);
       try {
-        const result = JSON.parse(xhr.responseText);
+        document.body.removeChild(form);
+        document.body.removeChild(iframe);
+      } catch (e) {
+        // Игнорируем ошибки удаления
+      }
+    }
+
+    iframe.onload = function () {
+      try {
+        const text = iframe.contentDocument.body.textContent || iframe.contentDocument.body.innerText;
+        const result = JSON.parse(text);
+        cleanup();
         resolve(result);
       } catch (e) {
-        reject(new Error("Failed to parse upload response"));
+        cleanup();
+        reject(new Error("Failed to parse upload response: " + e.message));
       }
     };
-    xhr.onerror = function () {
-      reject(new Error("XHR upload failed"));
-    };
-    xhr.send(formData);
+
+    // Отправляем форму
+    form.submit();
   });
 }
 
