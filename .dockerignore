@@ -1,0 +1,32 @@
+# .dockerignore — исключаем ненужные файлы из контекста сборки
+
+# Системные файлы
+.git/
+.gitignore
+.gitattributes
+*.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+docker-compose.yml
+docker-compose*.yml
+
+# Планы и заметки
+plans/
+
+# Тестовые файлы
+test_check.js
+test_find.js
+
+# Скриншоты
+screenshot.png

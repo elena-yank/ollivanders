@@ -1,0 +1,59 @@
+/* parallax-bg.css — 3D-параллакс для фоновых изображений */
+
+/* Контейнер, который занимает весь экран позади всего */
+#parallax-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  /* perspective задаёт глубину 3D-сцены */
+  perspective: 1200px;
+}
+
+/* Внутренний слой, который будет вращаться */
+#parallax-bg-layer {
+  position: absolute;
+  /* Выходим за края, чтобы при повороте не было пустых полей */
+  top: -8%;
+  left: -8%;
+  width: 116%;
+  height: 116%;
+  background: center / cover no-repeat;
+  /* Плавный переход при смене изображения и трансформа */
+  transition: background-image 0.6s ease, opacity 0.6s ease;
+  /* Сам 3D-трансформ будет задаваться из JS */
+  will-change: transform;
+}
+
+/* Затемнение поверх фона */
+#parallax-bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(15, 12, 26, 0.55);
+  transition: background 0.4s ease;
+}
+
+/* Когда активен результат — эллиптическое затемнение (чёрное по краям, прозрачное в центре) */
+body.result-bg #parallax-bg-overlay {
+  background:
+    radial-gradient(
+      ellipse 50% 60% at 50% 50%,
+      transparent 30%,
+      rgb(0, 0, 0) 70%
+    );
+}
+
+/* На экранах вопросов убираем затемнение */
+body.question-bg #parallax-bg-overlay {
+  background: transparent;
+}
+
+body.question-bg {
+  background: none !important;
+}
+
+body.result-bg {
+  background: none !important;
+}

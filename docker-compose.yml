@@ -1,0 +1,30 @@
+# ============================================================
+# docker-compose.yml — запуск приложения "Волшебная палочка"
+#
+# Поддомен: ollivanders.aurorhq.ru
+# ============================================================
+
+version: "3.8"
+
+services:
+  wand:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wand-test
+    restart: unless-stopped
+    ports:
+      # Пробрасываем порт 80 контейнера на порт 8080 хоста
+      # (чтобы не конфликтовать с другими сервисами на 80 порту)
+      - "8080:80"
+    # Если нужен HTTPS — раскомментируйте и настройте:
+    # volumes:
+    #   - /path/to/ssl/certs:/etc/nginx/ssl:ro
+    # environment:
+    #   - NGINX_HTTPS=true
+    networks:
+      - wand-network
+
+networks:
+  wand-network:
+    driver: bridge
