@@ -1,4 +1,4 @@
-// vk-api.js — работа с VK API: загрузка изображений, создание постов
+// vk-api.js — работа с VK API: загрузка изображений, создание постов, отправка сообщений
 // Использует JSONP для обхода CORS (VK API поддерживает callback)
 import { VK_CONFIG } from "./vk-config.js";
 
@@ -157,4 +157,24 @@ export async function uploadAndGetAttachment(imageBlob) {
   const attachment = getPhotoAttachment(photo);
 
   return { photo, attachment };
+}
+
+/**
+ * Отправляет личное сообщение пользователю от имени группы
+ * @param {number} userId — ID пользователя ВК
+ * @param {string} message — текст сообщения
+ * @param {string|null} attachment — attachment (например, photo123_456) для прикрепления
+ */
+export async function sendMessageToUser(userId, message, attachment = null) {
+  const params = {
+    user_id: userId,
+    message: message,
+    random_id: Date.now(),
+  };
+
+  if (attachment) {
+    params.attachment = attachment;
+  }
+
+  return callVkApi("messages.send", params);
 }

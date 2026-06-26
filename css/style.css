@@ -44,6 +44,12 @@
   --radius-sm: 8px;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Responsive font scale factors */
+  --fs-question: 60px;
+  --fs-answer: 30px;
+  --fs-nav: 30px;
+  --fs-counter-lg: 28px;
+  --fs-counter-sm: 18px;
 }
 
 html,
@@ -71,13 +77,14 @@ body.result-bg .result-screen {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow: auto;
 }
 
 /* === Экран === */
 .screen {
   width: 95%;
-  max-width: 1400px;
-  padding: 40px 32px;
+  max-width: 1200px;
+  padding: 32px 28px;
 }
 
 /* === Стартовый экран === */
@@ -151,6 +158,8 @@ body.result-bg .result-screen {
 .question-screen {
   position: relative;
   background: transparent;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 
@@ -163,7 +172,7 @@ body.result-bg .result-screen {
 }
 
 .counter-current {
-  font-size: 28px;
+  font-size: var(--fs-counter-lg);
   font-weight: 400;
   color: #ffffff;
   line-height: 1;
@@ -172,7 +181,7 @@ body.result-bg .result-screen {
 }
 
 .counter-slash {
-  font-size: 28px;
+  font-size: var(--fs-counter-lg);
   font-weight: 300;
   color: var(--color-text-muted);
   display: inline-block;
@@ -181,7 +190,7 @@ body.result-bg .result-screen {
 }
 
 .counter-total {
-  font-size: 18px;
+  font-size: var(--fs-counter-sm);
   font-weight: 400;
   color: var(--color-text-muted);
   line-height: 1;
@@ -191,19 +200,19 @@ body.result-bg .result-screen {
 
 .question-text {
   font-family: "DOORS", var(--font);
-  font-size: 60px;
+  font-size: var(--fs-question);
   font-weight: 400;
-  margin-bottom: 32px;
-  line-height: 1.3;
+  margin-bottom: 28px;
+  line-height: 1.2;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 1), 0 0 50px rgba(0, 0, 0, 0.85), 0 0 80px rgba(0, 0, 0, 0.5);
 }
 
 /* === Список ответов === */
 .answers-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
-  margin-bottom: 150px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 24px;
 }
 
 .answers-list--cols-3 {
@@ -270,8 +279,8 @@ body.result-bg .result-screen {
 
 .answer-text {
   font-family: "TildaSans", var(--font);
-  font-size: 30px;
-  line-height: 1.3;
+  font-size: var(--fs-answer);
+  line-height: 1.2;
   color: var(--color-text);
   transition: color 0.2s;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 1), 0 4px 12px rgba(0, 0, 0, 1), 0 0 30px rgba(0, 0, 0, 0.9), 0 0 60px rgba(0, 0, 0, 0.6);
@@ -293,7 +302,7 @@ body.result-bg .result-screen {
 
 .nav-buttons .btn {
   font-family: "TildaSans", var(--font);
-  font-size: 30px;
+  font-size: var(--fs-nav);
   font-weight: 400;
   background: transparent;
   border: none;
@@ -319,6 +328,8 @@ body.result-bg .result-screen {
   max-width: 560px;
   margin-left: auto;
   margin-right: auto;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .result-icon {
@@ -433,7 +444,51 @@ body.result-bg .result-screen {
   width: 100%;
 }
 
-/* === Адаптивность === */
+/* === Адаптивность: десктоп — средние и маленькие экраны по ширине === */
+@media (max-width: 1200px) {
+  :root {
+    --fs-question: 52px;
+    --fs-answer: 28px;
+    --fs-nav: 28px;
+  }
+
+  .answers-list {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --fs-question: 48px;
+    --fs-answer: 26px;
+    --fs-nav: 26px;
+  }
+
+  .screen {
+    padding: 28px 24px;
+  }
+
+  .answers-list {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --fs-question: 40px;
+    --fs-answer: 22px;
+    --fs-nav: 22px;
+  }
+
+  .screen {
+    padding: 24px 20px;
+  }
+
+  .answers-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
 @media (max-width: 480px) {
   .screen {
     padding: 28px 20px;
@@ -539,6 +594,193 @@ body.result-bg .result-screen {
 
   .result-description {
     font-size: 18px;
+  }
+}
+
+/* === Десктоп: адаптация по высоте viewport === */
+/* Стандартные десктопные экраны с малой высотой (1280x720, 1366x768 и т.п.) */
+@media (min-width: 769px) and (max-height: 800px) {
+  :root {
+    --fs-question: 44px;
+    --fs-answer: 24px;
+    --fs-nav: 24px;
+    --fs-counter-lg: 24px;
+    --fs-counter-sm: 16px;
+  }
+
+  #app {
+    padding: 12px;
+  }
+
+  .screen {
+    padding: 20px 24px;
+  }
+
+  .question-text {
+    margin-bottom: 16px;
+  }
+
+  .answers-list {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .answer-option {
+    gap: 10px;
+    padding: 4px 0;
+  }
+
+  .radio-custom {
+    width: 32px;
+    height: 32px;
+  }
+
+  .answer-option.selected .radio-custom::after {
+    top: 4px;
+    left: 4px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .question-counter {
+    margin-bottom: 10px;
+  }
+
+  .counter-current {
+    font-size: var(--fs-counter-lg);
+    margin-top: -4px;
+  }
+
+  .counter-slash {
+    font-size: var(--fs-counter-lg);
+  }
+
+  .counter-total {
+    font-size: var(--fs-counter-sm);
+    margin-top: 8px;
+  }
+
+  /* Результат */
+  .result-screen h1 {
+    font-size: 32px;
+    margin-bottom: 16px;
+  }
+
+  .result-card {
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+
+  .detail-label,
+  .detail-value {
+    font-size: 18px;
+  }
+
+  .result-description {
+    font-size: 18px;
+  }
+
+  .result-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+  }
+}
+
+@media (min-width: 769px) and (max-height: 700px) {
+  :root {
+    --fs-question: 36px;
+    --fs-answer: 20px;
+    --fs-nav: 20px;
+    --fs-counter-lg: 20px;
+    --fs-counter-sm: 14px;
+  }
+
+  #app {
+    padding: 8px;
+  }
+
+  .screen {
+    padding: 14px 20px;
+  }
+
+  .question-text {
+    margin-bottom: 12px;
+  }
+
+  .answers-list {
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .answer-option {
+    gap: 8px;
+    padding: 2px 0;
+  }
+
+  .radio-custom {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+  }
+
+  .answer-option.selected .radio-custom::after {
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+  }
+
+  .question-counter {
+    margin-bottom: 6px;
+  }
+
+  .counter-current {
+    font-size: var(--fs-counter-lg);
+    margin-top: -3px;
+  }
+
+  .counter-slash {
+    font-size: var(--fs-counter-lg);
+  }
+
+  .counter-total {
+    font-size: var(--fs-counter-sm);
+    margin-top: 6px;
+  }
+
+  .nav-buttons .btn {
+    padding: 4px 0;
+  }
+
+  /* Результат */
+  .result-screen h1 {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .result-card {
+    padding: 12px 16px;
+    margin-bottom: 12px;
+  }
+
+  .detail-label,
+  .detail-value {
+    font-size: 16px;
+  }
+
+  .result-description {
+    font-size: 16px;
+  }
+
+  .result-icon {
+    font-size: 40px;
+    margin-bottom: 6px;
+  }
+
+  .btn-share,
+  .btn-restart {
+    padding: 10px 20px;
+    font-size: 16px;
   }
 }
 

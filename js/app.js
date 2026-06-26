@@ -3,8 +3,9 @@ import { questions } from "./questions.js";
 import { findResult } from "./results.js";
 import { initParallaxBg, setParallaxBg, clearParallaxBg } from "./parallax-bg.js";
 import { generateResultImage } from "./result-image.js";
-import { uploadAndGetAttachment } from "./vk-api.js";
+import { uploadAndGetAttachment, sendMessageToUser } from "./vk-api.js";
 import { VK_CONFIG } from "./vk-config.js";
+import { getVkUserInfo } from "./vk-bridge.js";
 
 // === Состояние ===
 const state = {
@@ -87,9 +88,7 @@ function renderQuestion(index) {
   // Обработчики выбора ответа
   document.querySelectorAll('input[type="radio"]').forEach((input) => {
     input.addEventListener("change", (e) => {
-      console.log("DEBUG answer selected:", qKey, "=", e.target.value.toLowerCase());
       state.answers[qKey] = e.target.value.toLowerCase();
-      console.log("DEBUG answers state:", JSON.stringify(state.answers));
       // Визуальное обновление
       document.querySelectorAll(".answer-option").forEach((opt) => {
         opt.classList.toggle(
@@ -128,6 +127,39 @@ function finishTest() {
   }
   render();
   saveToLocalStorage();
+  // Отправляем результат в ЛС пользователю (если он в ВК)
+  sendResultToUser();
+}
+
+/**
+ * Отправляет результат теста пользователю в ЛС от имени группы
+ */
+async function sendResultToUser() {
+  if (!state.result) return;
+
+  try {
+    // 1. Получаем информацию о пользователе через VK Bridge
+    const userInfo = await getVkUserInfo();
+    if (!userInfo || !userInfo.id) {
+      console.log("Не удалось получить ID пользователя — пропускаем отправку ЛС");
+      return;
+    }
+
+    // 2. Формируем текст сообщения
+    const message = `🪄 Олливандер выбрал для тебя волшебную палочку!\n\n` +
+      `✨ ${state.result.title}\n` +
+      `📏 Длина: ${state.result.length}\n` +
+      `🔄 Упругость: ${state.result.flexibility}\n\n` +
+      `${state.result.description}\n\n` +
+      `Пройти тест: ${window.location.href}`;
+
+    // 3. Отправляем сообщение
+    await sendMessageToUser(userInfo.id, message);
+    console.log("Результат отправлен в ЛС пользователю", userInfo.id);
+  } catch (error) {
+    // Если не сработало — не критично, пользователь всё равно видит результат на экране
+    console.log("Не удалось отправить ЛС (возможно, нет диалога с группой):", error);
+  }
 }
 
 // === Экран результата ===
@@ -308,9 +340,6 @@ function initVKBridge() {
   if (window.vkBridge) {
     // Отправляем событие инициализации нативному клиенту VK
     vkBridge.send("VKWebAppInit", {});
-    console.log("VK Bridge initialized");
-  } else {
-    console.log("VK Bridge not available — running outside VK");
   }
 }
 

@@ -1759,7 +1759,6 @@ function hashString(str) {
 // Функция поиска результата по ответам пользователя
 export function findResult(selectedKeys) {
   // selectedKeys: { q1: "height_short", q2: "eyes_brown", ..., q7: "artifact_gem" }
-  console.log("DEBUG findResult called with:", JSON.stringify(selectedKeys));
 
   // 1. Сначала ищем точное совпадение среди правил
   for (const rule of resultRules) {
