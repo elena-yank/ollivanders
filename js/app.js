@@ -303,8 +303,22 @@ function loadFromLocalStorage() {
   return false;
 }
 
+// === Инициализация VK Bridge (для каталога ВКонтакте) ===
+function initVKBridge() {
+  if (window.vkBridge) {
+    // Отправляем событие инициализации нативному клиенту VK
+    vkBridge.send("VKWebAppInit", {});
+    console.log("VK Bridge initialized");
+  } else {
+    console.log("VK Bridge not available — running outside VK");
+  }
+}
+
 // === Инициализация ===
 function init() {
+  // Инициализируем VK Bridge (для каталога ВКонтакте)
+  initVKBridge();
+
   // Инициализируем DOM-структуру параллакс-фона
   initParallaxBg();
 
