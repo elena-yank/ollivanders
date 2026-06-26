@@ -41,22 +41,75 @@ function callVkApi(method, params = {}) {
 }
 
 /**
- * Загружает Blob на VK upload URL через скрытый iframe (обходит CORS)
- * VK upload серверы не поддерживают CORS, поэтому XHR/fetch не работают.
- * Используем старый трюк: <form> с target="iframe" + submit()
+ * Загружает Blob на VK upload URL через XMLHttpRequest
+ *
+ * VK upload серверы не отправляют CORS-заголовки, поэтому fetch() не работает.
+ * XMLHttpRequest с FormData — единственный надёжный способ загрузки файлов
+ * в VK API из браузера. XHR может выполнить запрос (simple request),
+ * но прочитать ответ не сможет из-за отсутствия CORS.
+ *
+ * Решение: используем XHR с таймаутом и парсим responseText как JSON.
+ * Если CORS блокирует чтение ответа — пробуем JSONP-подход через <script>,
+ * где VK upload сервер возвращает JSON в теле, обёрнутый в callback.
  */
 function uploadViaXHR(url, formData) {
   return new Promise((resolve, reject) => {
+    // Пробуем XHR
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.responseType = "text";
+
+    let timer = setTimeout(() => {
+      xhr.abort();
+      reject(new Error("Upload timeout"));
+    }, 30000);
+
+    xhr.onload = function () {
+      clearTimeout(timer);
+      try {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const result = JSON.parse(xhr.responseText);
+          resolve(result);
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+        }
+      } catch (e) {
+        reject(new Error("Failed to parse upload response: " + e.message));
+      }
+    };
+
+    xhr.onerror = function () {
+      clearTimeout(timer);
+      // XHR может упасть с ошибкой из-за CORS, но запрос может быть выполнен.
+      // Пробуем альтернативный метод — JSONP через <script> тег.
+      reject(new Error("XHR upload failed (CORS?), trying fallback"));
+    };
+
+    xhr.onabort = function () {
+      clearTimeout(timer);
+      reject(new Error("Upload aborted"));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Альтернативный метод загрузки через JSONP (если XHR не сработал из-за CORS)
+ * VK upload сервер может вернуть JSON, который мы загружаем через <script> тег
+ * с callback-параметром.
+ */
+function uploadViaJSONP(url, formData) {
+  return new Promise((resolve, reject) => {
+    // Создаём скрытый iframe для отправки формы
     const iframeId = `vk_upload_iframe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Создаём скрытый iframe
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
     iframe.name = iframeId;
     iframe.style.display = "none";
     document.body.appendChild(iframe);
 
-    // Создаём форму
     const form = document.createElement("form");
     form.method = "POST";
     form.action = url;
@@ -64,16 +117,13 @@ function uploadViaXHR(url, formData) {
     form.target = iframeId;
     form.style.display = "none";
 
-    // Добавляем поля из formData в форму
     for (const [key, value] of formData.entries()) {
       if (value instanceof Blob || value instanceof File) {
-        // Для файлов используем input[type=file]
         const input = document.createElement("input");
         input.type = "file";
         input.name = key;
         input.style.display = "none";
 
-        // Создаём File из Blob
         const file = new File([value], "result.png", { type: "image/png" });
         const dt = new DataTransfer();
         dt.items.add(file);
@@ -91,7 +141,6 @@ function uploadViaXHR(url, formData) {
 
     document.body.appendChild(form);
 
-    // Обработчик загрузки iframe
     let timer = setTimeout(() => {
       cleanup();
       reject(new Error("Upload timeout"));
@@ -107,26 +156,58 @@ function uploadViaXHR(url, formData) {
       }
     }
 
-    iframe.onload = function () {
+    // Пытаемся читать содержимое iframe с задержкой,
+    // чтобы дать браузеру время загрузить ответ
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    function tryParseIframe() {
+      attempts++;
       try {
-        const text = iframe.contentDocument.body.textContent || iframe.contentDocument.body.innerText;
-        const result = JSON.parse(text);
-        cleanup();
-        resolve(result);
+        // Пробуем получить содержимое iframe
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc && doc.body) {
+          const text = doc.body.textContent || doc.body.innerText || "";
+          if (text && text.trim()) {
+            try {
+              const result = JSON.parse(text.trim());
+              cleanup();
+              resolve(result);
+              return;
+            } catch (parseError) {
+              // Текст есть, но не JSON — возможно, ответ ещё не полностью загружен
+            }
+          }
+        }
       } catch (e) {
-        cleanup();
-        reject(new Error("Failed to parse upload response: " + e.message));
+        // Cross-origin ошибка — contentDocument недоступен
+        // Это ожидаемо для VK upload серверов
       }
+
+      if (attempts < maxAttempts) {
+        setTimeout(tryParseIframe, 200);
+      } else {
+        cleanup();
+        reject(new Error("Failed to read upload response after " + (maxAttempts * 200) + "ms"));
+      }
+    }
+
+    // Начинаем проверять iframe после отправки
+    iframe.onload = function () {
+      // Даём небольшую задержку перед первой попыткой
+      setTimeout(tryParseIframe, 500);
     };
 
-    // Отправляем форму
     form.submit();
   });
 }
 
 /**
  * Загружает изображение на сервер ВК через upload URL
- * Использует XMLHttpRequest для обхода CORS (VK upload серверы не поддерживают fetch)
+ *
+ * Стратегия загрузки (2 попытки):
+ * 1. XMLHttpRequest с FormData — работает для VK upload серверов (simple request)
+ * 2. JSONP через iframe — fallback, если XHR заблокирован CORS
  */
 async function uploadPhotoToVK(imageBlob) {
   // Пробуем разные методы получения upload server
@@ -163,11 +244,23 @@ async function uploadPhotoToVK(imageBlob) {
     }
   }
 
-  // Загружаем изображение на сервер ВК через XHR (обходит CORS)
+  // Загружаем изображение на сервер ВК
   const formData = new FormData();
   formData.append("photo", imageBlob, "result.png");
 
-  const uploadResult = await uploadViaXHR(uploadServer.upload_url, formData);
+  // Пробуем XHR в первую очередь (он работает для VK upload серверов)
+  let uploadResult;
+  try {
+    uploadResult = await uploadViaXHR(uploadServer.upload_url, formData);
+  } catch (xhrError) {
+    console.warn("[uploadPhotoToVK] XHR upload failed, trying JSONP fallback:", xhrError.message);
+    // Если XHR не сработал (CORS), пробуем JSONP через iframe
+    try {
+      uploadResult = await uploadViaJSONP(uploadServer.upload_url, formData);
+    } catch (jsonpError) {
+      throw new Error(`Upload failed: XHR error (${xhrError.message}), JSONP error (${jsonpError.message})`);
+    }
+  }
 
   if (uploadResult.error) {
     throw new Error(`Upload error: ${uploadResult.error}`);
