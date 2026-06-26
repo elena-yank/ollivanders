@@ -2,6 +2,8 @@
 import { questions } from "./questions.js";
 import { findResult } from "./results.js";
 import { initParallaxBg, setParallaxBg, clearParallaxBg } from "./parallax-bg.js";
+import { sendMessageToUser } from "./vk-api.js";
+import { getVkUserInfo } from "./vk-bridge.js";
 import { captureResultScreenshot } from "./screenshot.js";
 
 // === Состояние ===
@@ -147,33 +149,57 @@ function downloadBlob(blob, filename) {
 
 /**
  * Отправляет результат теста пользователю в ЛС от имени группы
- * с прикреплённым скриншотом результата
+ * и скачивает скриншот на устройство
  */
 async function sendResultToUser() {
   if (!state.result) return;
 
-  // Пытаемся сделать скриншот через Canvas (без html2canvas)
-  let imageBlob = null;
   try {
-    // Сначала пробуем новый метод с фоновым изображением и эллипсом
-    imageBlob = await captureResultScreenshot(state.result);
-    console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
-  } catch (screenshotError) {
-    console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
-    // Fallback: используем старый генератор изображения
-    try {
-      imageBlob = await generateResultImage(state.result);
-      console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
-    } catch (fallbackError) {
-      console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
-      alert("Ошибка создания изображения: " + fallbackError.message);
+    // 1. Получаем информацию о пользователе через VK Bridge
+    const userInfo = await getVkUserInfo();
+    if (!userInfo || !userInfo.id) {
+      console.log("Не удалось получить ID пользователя — пропускаем отправку ЛС");
+      return;
     }
-  }
 
-  // Автоматически скачиваем скриншот на устройство пользователя
-  if (imageBlob) {
-    downloadBlob(imageBlob, "wand-result.png");
-    console.log("[sendResult] Скриншот скачан на устройство");
+    // 2. Пытаемся сделать скриншот через Canvas
+    let imageBlob = null;
+    try {
+      imageBlob = await captureResultScreenshot(state.result);
+      console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
+    } catch (screenshotError) {
+      console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
+      try {
+        imageBlob = await generateResultImage(state.result);
+        console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
+      } catch (fallbackError) {
+        console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
+      }
+    }
+
+    // Скачиваем скриншот на устройство (без отправки в ЛС)
+    if (imageBlob) {
+      downloadBlob(imageBlob, "wand-result.png");
+      console.log("[sendResult] Скриншот скачан на устройство");
+    }
+
+    // 3. Формируем текст сообщения (без вложения)
+    const message = `🪄 Олливандер помог подобрать тебе волшебную палочку!\n\n` +
+      `✨ ${state.result.title}\n` +
+      `📏 Длина: ${state.result.length}\n` +
+      `🔄 Упругость: ${state.result.flexibility}\n\n` +
+      `${state.result.description}\n\n` +
+      `Пройти тест: https://vk.com/app54654657`;
+
+    // 4. Отправляем сообщение без скриншота
+    try {
+      await sendMessageToUser(userInfo.id, message, null);
+      console.log("[sendResult] Сообщение отправлено пользователю", userInfo.id);
+    } catch (sendError) {
+      console.error("[sendResult] Ошибка отправки сообщения:", sendError);
+    }
+  } catch (error) {
+    console.error("[sendResult] Общая ошибка:", error);
   }
 }
 
