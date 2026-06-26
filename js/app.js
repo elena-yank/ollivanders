@@ -134,6 +134,20 @@ function finishTest() {
 }
 
 /**
+ * Скачивает Blob как файл на устройство пользователя
+ */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * Отправляет результат теста пользователю в ЛС от имени группы
  * с прикреплённым скриншотом результата
  */
@@ -166,6 +180,12 @@ async function sendResultToUser() {
       }
     }
 
+    // Автоматически скачиваем скриншот на устройство пользователя
+    if (imageBlob) {
+      downloadBlob(imageBlob, "wand-result.png");
+      console.log("[sendResult] Скриншот скачан на устройство");
+    }
+
     // 3. Загружаем изображение на сервер ВК (если удалось создать)
     let attachment = null;
     if (imageBlob) {
@@ -188,12 +208,12 @@ async function sendResultToUser() {
     }
 
     // 4. Формируем текст сообщения
-    const message = `🪄 Олливандер выбрал для тебя волшебную палочку!\n\n` +
+    const message = `🪄 Олливандер помог подобрать тебе волшебную палочку!\n\n` +
       `✨ ${state.result.title}\n` +
       `📏 Длина: ${state.result.length}\n` +
       `🔄 Упругость: ${state.result.flexibility}\n\n` +
       `${state.result.description}\n\n` +
-      `Пройти тест: ${window.location.href}`;
+      `Пройти тест: https://vk.com/app54654657`;
 
     // 5. Отправляем сообщение с прикреплённым скриншотом
     try {
