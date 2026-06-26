@@ -14,6 +14,15 @@ const state = {
   result: null,
 };
 
+/**
+ * Определяет, запущено ли приложение внутри VK на десктопе.
+ * В десктопном мини-приложении VK Bridge доступен, а ширина окна >= 769px.
+ * @returns {boolean}
+ */
+function isVkDesktop() {
+  return typeof vkBridge !== "undefined" && window.innerWidth >= 769;
+}
+
 // === DOM-ссылки ===
 const app = document.getElementById("app");
 
@@ -64,7 +73,7 @@ function renderQuestion(index) {
     `;
   }
 
-  const answersListClass = "answers-list answers-list--cols-3";
+  const answersListClass = "answers-list answers-list--cols-3" + (isVkDesktop() ? " answers-list--vk-desktop" : "");
 
   app.innerHTML = `
     <div class="screen question-screen">

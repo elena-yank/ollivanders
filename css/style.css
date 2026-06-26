@@ -223,6 +223,11 @@ body.result-bg .result-screen {
   grid-template-columns: repeat(4, 1fr);
 }
 
+/* VK Desktop Mini App: не более 3 ответов в строку */
+.answers-list--vk-desktop {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+
 .answer-option {
   display: flex;
   align-items: center;
