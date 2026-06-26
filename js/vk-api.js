@@ -1,13 +1,45 @@
-// vk-api.js — работа с VK API: загрузка изображений, создание постов, отправка сообщений
-// Использует JSONP для обхода CORS (VK API поддерживает callback)
-// Для загрузки изображений использует серверный прокси (nginx → Node.js),
-// так как VK upload серверы не поддерживают CORS
+// vk-api.js — работа с VK API: загрузка изображений, отправка сообщений
+//
+// В VK Mini App все VK API вызовы идут через VK Bridge (VKWebAppCallAPIMethod).
+// VK Bridge отправляет запросы через нативный клиент ВК, поэтому CORS-проблем нет.
+//
+// Для загрузки изображений используется VK API метод photos.saveMessagesPhoto
+// с передачей фото в base64 (VK API поддерживает этот формат).
 import { VK_CONFIG } from "./vk-config.js";
 
 /**
- * Вызов VK API метод через JSONP
+ * Вызов VK API метода через VK Bridge
+ *
+ * VK Bridge (VKWebAppCallAPIMethod) отправляет запрос через нативный клиент ВК,
+ * что полностью решает проблему CORS — как для обычных API вызовов, так и для
+ * загрузки изображений.
+ *
+ * Если VK Bridge недоступен (приложение запущено вне ВК), используем JSONP.
  */
 function callVkApi(method, params = {}) {
+  // Если VK Bridge доступен — используем его (нет CORS)
+  if (typeof vkBridge !== "undefined") {
+    return vkBridge
+      .send("VKWebAppCallAPIMethod", {
+        method: method,
+        params: {
+          ...params,
+          access_token: VK_CONFIG.accessToken,
+          v: VK_CONFIG.apiVersion,
+        },
+      })
+      .then((response) => {
+        if (response.response) {
+          return response.response;
+        }
+        if (response.error) {
+          throw new Error(`VK API Error [${method}]: ${response.error.error_msg}`);
+        }
+        return response;
+      });
+  }
+
+  // Fallback: JSONP (для разработки вне ВК)
   return new Promise((resolve, reject) => {
     const callbackName = `vk_callback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -43,63 +75,56 @@ function callVkApi(method, params = {}) {
 }
 
 /**
- * Загружает изображение в VK через серверный прокси
- *
- * VK upload серверы (pu.vk.com) не отправляют CORS-заголовки,
- * поэтому браузер не может загружать файлы напрямую (ни XHR, ни fetch, ни iframe).
- *
- * Решение: отправляем изображение на свой сервер (base64 в JSON),
- * который загружает его в VK (сервер-сервер, без CORS) и возвращает attachment.
- *
- * Прокси-эндпоинт: POST /api/upload
- * Тело: { image: "data:image/png;base64,..." }
- * Ответ: { success: true, photo: {...}, attachment: "photo123_456" }
- */
-async function uploadViaProxy(imageBlob) {
-  // Конвертируем Blob в base64
-  const base64 = await blobToBase64(imageBlob);
-
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: base64 }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(
-      `Upload proxy error (${response.status}): ${errorData?.error || response.statusText}`
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(`Upload proxy error: ${result.error}`);
-  }
-
-  return result;
-}
-
-/**
- * Конвертирует Blob в base64 строку (data URI)
+ * Конвертирует Blob в base64 строку (без префикса data:image/...)
  */
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => {
+      // Убираем префикс data:image/png;base64,
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
     reader.onerror = () => reject(new Error("Failed to read blob as base64"));
     reader.readAsDataURL(blob);
   });
 }
 
 /**
- * Полный процесс: загрузка изображения на сервер ВК → возврат attachment
- * Использует серверный прокси для обхода CORS
+ * Загружает изображение в ВК и возвращает attachment
+ *
+ * Стратегия (2 попытки):
+ * 1. VK Bridge → photos.saveMessagesPhoto с base64 (работает внутри ВК, нет CORS)
+ * 2. VK API JSONP → photos.saveMessagesPhoto с base64 (fallback для разработки вне ВК)
  */
 export async function uploadAndGetAttachment(imageBlob) {
-  const result = await uploadViaProxy(imageBlob);
-  return { photo: result.photo, attachment: result.attachment };
+  // Конвертируем Blob в base64
+  const base64 = await blobToBase64(imageBlob);
+
+  // Загружаем фото через VK API метод photos.saveMessagesPhoto
+  // VK API принимает фото в формате base64
+  const savedPhotos = await callVkApi("photos.saveMessagesPhoto", {
+    group_id: VK_CONFIG.groupId,
+    photo: base64,
+  });
+
+  const photo = Array.isArray(savedPhotos) ? savedPhotos[0] : savedPhotos;
+
+  if (!photo || (!photo.id && !photo.photo_hash)) {
+    throw new Error("Invalid photo response from VK API");
+  }
+
+  // Формируем attachment
+  let attachment;
+  if (photo.id && photo.owner_id) {
+    attachment = `photo${photo.owner_id}_${photo.id}`;
+  } else if (photo.photo_hash) {
+    attachment = `photo-${VK_CONFIG.groupId}_${photo.photo_hash}`;
+  } else {
+    throw new Error("Unknown photo format");
+  }
+
+  return { photo, attachment };
 }
 
 /**
