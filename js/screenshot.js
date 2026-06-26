@@ -27,6 +27,52 @@ function loadImage(src) {
  * @param {Object} result - объект результата { title, wood, core, length, flexibility, description }
  * @returns {Promise<Blob>} - Blob изображения в формате PNG
  */
+/**
+ * Создаёт Blob из Canvas с контролем размера (≤ maxSize байт)
+ *
+ * VK ограничивает размер загружаемых изображений.
+ * Стратегия: JPEG с начальным качеством, снижаем если > maxSize.
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @param {string} type - MIME-тип (image/jpeg, image/webp)
+ * @param {number} initialQuality - начальное качество (0..1)
+ * @param {number} maxSize - максимальный размер в байтах (по умолчанию 500KB)
+ * @returns {Promise<Blob>}
+ */
+export function createCompressedBlob(canvas, type = "image/jpeg", initialQuality = 0.85, maxSize = 500 * 1024) {
+  return new Promise((resolve, reject) => {
+    let quality = initialQuality;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    function tryQuality(q) {
+      attempts++;
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to create blob from canvas"));
+            return;
+          }
+
+          console.log(`[compress] Attempt ${attempts}: quality=${q.toFixed(2)}, size=${blob.size} bytes`);
+
+          if (blob.size <= maxSize || q <= 0.3 || attempts >= maxAttempts) {
+            console.log(`[compress] Final: ${type}, quality=${q.toFixed(2)}, size=${blob.size} bytes (${(blob.size / 1024).toFixed(1)}KB)`);
+            resolve(blob);
+          } else {
+            const nextQ = Math.max(0.1, q - 0.05);
+            tryQuality(nextQ);
+          }
+        },
+        type,
+        q
+      );
+    }
+
+    tryQuality(quality);
+  });
+}
+
 export async function captureResultScreenshot(result) {
   console.log("[screenshot] Generating result image for:", result?.title);
 
@@ -214,17 +260,8 @@ export async function captureResultScreenshot(result) {
     resultCtx.fillText(desc, resultW / 2, cardY + cardH + Math.round(45 * textScale));
   }
 
-  // Конвертируем в Blob
-  return new Promise((resolve, reject) => {
-    resultCanvas.toBlob((blob) => {
-      if (blob) {
-        console.log("[screenshot] Blob created, size:", blob.size, "bytes");
-        resolve(blob);
-      } else {
-        reject(new Error("Failed to create blob from canvas"));
-      }
-    }, "image/png");
-  });
+  // Конвертируем в Blob с контролем размера (≤500KB для VK)
+  return createCompressedBlob(resultCanvas, "image/jpeg", 0.85);
 }
 
 /**

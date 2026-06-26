@@ -1,10 +1,11 @@
 // result-image.js — генерация изображения с результатом теста для VK
 // Использует Canvas для отрисовки карточки результата
+import { createCompressedBlob } from "./screenshot.js";
 
 /**
  * Генерирует Canvas-изображение с результатом теста
  * @param {Object} result - объект результата (title, wood, core, length, flexibility, description)
- * @returns {Promise<Blob>} - Blob изображения в формате PNG
+ * @returns {Promise<Blob>} - Blob изображения в формате JPEG (≤500KB)
  */
 export async function generateResultImage(result) {
   // Размеры изображения (оптимально для VK: 1200x630)
@@ -129,12 +130,8 @@ export async function generateResultImage(result) {
   ctx.lineTo(WIDTH - 200, HEIGHT - 55);
   ctx.stroke();
 
-  // Конвертируем в Blob
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      resolve(blob);
-    }, "image/png");
-  });
+  // Конвертируем в Blob с контролем размера (≤500KB для VK)
+  return createCompressedBlob(canvas, "image/jpeg", 0.85);
 }
 
 /**
