@@ -2,7 +2,7 @@
 import { questions } from "./questions.js";
 import { findResult } from "./results.js";
 import { initParallaxBg, setParallaxBg, clearParallaxBg } from "./parallax-bg.js";
-import { sendMessageToUser } from "./vk-api.js";
+import { sendMessageToUser, uploadAndGetAttachment } from "./vk-api.js";
 import { getVkUserInfo } from "./vk-bridge.js";
 import { captureResultScreenshot } from "./screenshot.js";
 
@@ -149,7 +149,7 @@ function downloadBlob(blob, filename) {
 
 /**
  * Отправляет результат теста пользователю в ЛС от имени группы
- * и скачивает скриншот на устройство
+ * с прикреплённым скриншотом результата
  */
 async function sendResultToUser() {
   if (!state.result) return;
@@ -162,28 +162,31 @@ async function sendResultToUser() {
       return;
     }
 
-    // 2. Пытаемся сделать скриншот через Canvas
+    // 2. Пытаемся сделать скриншот через Canvas (без html2canvas)
     let imageBlob = null;
     try {
+      // Сначала пробуем новый метод с фоновым изображением и эллипсом
       imageBlob = await captureResultScreenshot(state.result);
       console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
     } catch (screenshotError) {
       console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
+      // Fallback: используем старый генератор изображения
       try {
         imageBlob = await generateResultImage(state.result);
         console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
       } catch (fallbackError) {
         console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
+        alert("Ошибка создания изображения: " + fallbackError.message);
       }
     }
 
-    // Скачиваем скриншот на устройство (без отправки в ЛС)
+    // Автоматически скачиваем скриншот на устройство пользователя
     if (imageBlob) {
       downloadBlob(imageBlob, "wand-result.png");
       console.log("[sendResult] Скриншот скачан на устройство");
     }
 
-    // 3. Формируем текст сообщения (без вложения)
+    // 3. Формируем текст сообщения
     const message = `🪄 Олливандер помог подобрать тебе волшебную палочку!\n\n` +
       `✨ ${state.result.title}\n` +
       `📏 Длина: ${state.result.length}\n` +
@@ -193,13 +196,15 @@ async function sendResultToUser() {
 
     // 4. Отправляем сообщение без скриншота
     try {
-      await sendMessageToUser(userInfo.id, message, null);
+      await sendMessageToUser(userInfo.id, message);
       console.log("[sendResult] Сообщение отправлено пользователю", userInfo.id);
     } catch (sendError) {
       console.error("[sendResult] Ошибка отправки сообщения:", sendError);
+      alert("Ошибка отправки сообщения: " + sendError.message);
     }
   } catch (error) {
     console.error("[sendResult] Общая ошибка:", error);
+    alert("Общая ошибка: " + error.message);
   }
 }
 
