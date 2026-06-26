@@ -17,11 +17,14 @@ services:
       # Пробрасываем порт 80 контейнера на порт 8083 хоста
       # (чтобы не конфликтовать с другими сервисами на 80 порту)
       - "8083:80"
+    environment:
+      # Токен доступа VK API для прокси-сервера загрузки изображений
+      # ВАЖНО: Замените на актуальный токен или используйте .env файл
+      - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN:-vk1.a.77yAg6y5BTzW3nhh6J1snOGGVPr445DZMEcGbufcnxoAuxGTTsUpm68ApsEE9PzPNFgMMnY9AfD42gzYLQinD_nAvFIWYyEvNNwOJhvz-jrC5ZjCuLCM0PN95fa0wuJQOBkV8h9nURiFQ_CLsvwUDnCyHphdRB3inhjaXWeCWwneclKRhw68JvpLYtsjLrW-lD5u54i-7WMbZzRR-69B9g}
+      - VK_GROUP_ID=${VK_GROUP_ID:-229621082}
     # Если нужен HTTPS — раскомментируйте и настройте:
     # volumes:
     #   - /path/to/ssl/certs:/etc/nginx/ssl:ro
-    # environment:
-    #   - NGINX_HTTPS=true
     networks:
       - wand-network
 
