@@ -175,11 +175,13 @@ async function sendResultToUser() {
         console.log("[sendResult] Изображение загружено в ВК, attachment:", attachment);
       } catch (uploadError) {
         console.error("[sendResult] Ошибка загрузки изображения в ВК:", uploadError);
-        // Не показываем alert при 502 — это значит, что прокси-сервер ещё не развёрнут
-        // Сообщение отправится без attachment
-        if (!uploadError.message.includes("502")) {
-          alert("Ошибка загрузки изображения в ВК: " + uploadError.message);
-        }
+        // uploadError может быть Error, объектом VK Bridge или строкой
+        // Извлекаем понятное сообщение об ошибке
+        const errorMsg = uploadError?.message
+          || uploadError?.error_msg
+          || uploadError?.error?.error_msg
+          || (typeof uploadError === "string" ? uploadError : JSON.stringify(uploadError));
+        // Сообщение отправится без attachment — не показываем alert
       }
     } else {
       console.warn("[sendResult] Изображение не создано — отправляем без attachment");

@@ -7,6 +7,7 @@
 version: "3.8"
 
 services:
+  # Nginx — раздача статики + прокси для загрузки изображений
   wand:
     build:
       context: .
@@ -14,14 +15,25 @@ services:
     container_name: wand-test
     restart: unless-stopped
     ports:
-      # Пробрасываем порт 80 контейнера на порт 8083 хоста
-      # (чтобы не конфликтовать с другими сервисами на 80 порту)
       - "8083:80"
-    # Если нужен HTTPS — раскомментируйте и настройте:
-    # volumes:
-    #   - /path/to/ssl/certs:/etc/nginx/ssl:ro
-    # environment:
-    #   - NGINX_HTTPS=true
+    depends_on:
+      - upload-proxy
+    networks:
+      - wand-network
+
+  # Node.js прокси для загрузки изображений в VK
+  # VK upload серверы не поддерживают CORS — нужен серверный прокси
+  upload-proxy:
+    image: node:20-alpine
+    container_name: wand-upload-proxy
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./server/upload-proxy.js:/app/upload-proxy.js:ro
+    environment:
+      - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN:-vk1.a.77yAg6y5BTzW3nhh6J1snOGGVPr445DZMEcGbufcnxoAuxGTTsUpm68ApsEE9PzPNFgMMnY9AfD42gzYLQinD_nAvFIWYyEvNNwOJhvz-jrC5ZjCuLCM0PN95fa0wuJQOBkV8h9nURiFQ_CLsvwUDnCyHphdRB3inhjaXWeCWwneclKRhw68JvpLYtsjLrW-lD5u54i-7WMbZzRR-69B9g}
+      - VK_GROUP_ID=${VK_GROUP_ID:-229621082}
+    command: node /app/upload-proxy.js
     networks:
       - wand-network
 
