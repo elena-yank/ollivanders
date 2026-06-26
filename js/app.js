@@ -2,10 +2,9 @@
 import { questions } from "./questions.js";
 import { findResult } from "./results.js";
 import { initParallaxBg, setParallaxBg, clearParallaxBg } from "./parallax-bg.js";
-import { generateResultImage } from "./result-image.js";
-import { uploadAndGetAttachment, sendMessageToUser } from "./vk-api.js";
-import { VK_CONFIG } from "./vk-config.js";
+import { sendMessageToUser, uploadAndGetAttachment } from "./vk-api.js";
 import { getVkUserInfo } from "./vk-bridge.js";
+import { captureResultScreenshot } from "./screenshot.js";
 
 // === Состояние ===
 const state = {
@@ -133,6 +132,7 @@ function finishTest() {
 
 /**
  * Отправляет результат теста пользователю в ЛС от имени группы
+ * с прикреплённым скриншотом результата
  */
 async function sendResultToUser() {
   if (!state.result) return;
@@ -145,7 +145,19 @@ async function sendResultToUser() {
       return;
     }
 
-    // 2. Формируем текст сообщения
+    // 2. Делаем скриншот результата (центральная часть в эллипсе, без кнопок)
+    let attachment = null;
+    try {
+      const screenshotBlob = await captureResultScreenshot();
+      const result = await uploadAndGetAttachment(screenshotBlob);
+      attachment = result.attachment;
+      console.log("Скриншот результата загружен в ВК:", attachment);
+    } catch (screenshotError) {
+      // Если скриншот не удался — продолжаем без него
+      console.log("Не удалось создать/загрузить скриншот:", screenshotError);
+    }
+
+    // 3. Формируем текст сообщения
     const message = `🪄 Олливандер выбрал для тебя волшебную палочку!\n\n` +
       `✨ ${state.result.title}\n` +
       `📏 Длина: ${state.result.length}\n` +
@@ -153,9 +165,9 @@ async function sendResultToUser() {
       `${state.result.description}\n\n` +
       `Пройти тест: ${window.location.href}`;
 
-    // 3. Отправляем сообщение
-    await sendMessageToUser(userInfo.id, message);
-    console.log("Результат отправлен в ЛС пользователю", userInfo.id);
+    // 4. Отправляем сообщение с прикреплённым скриншотом
+    await sendMessageToUser(userInfo.id, message, attachment);
+    console.log("Результат отправлен в ЛС пользователю", userInfo.id, "с attachment:", attachment);
   } catch (error) {
     // Если не сработало — не критично, пользователь всё равно видит результат на экране
     console.log("Не удалось отправить ЛС (возможно, нет диалога с группой):", error);
@@ -183,9 +195,6 @@ function renderResultScreen() {
     `;
     document.getElementById("btn-restart").addEventListener("click", resetTest);
   } else {
-    // Формируем текст для публикации
-    const shareText = `🪄 Олливандер выдал мне волшебную палочку: ${result.title}!\n\n${result.description}\n\nДревесина: ${result.wood}\nСердцевина: ${result.core}\nДлина: ${result.length}\nУпругость: ${result.flexibility}\n\nА какая палочка достанется тебе? Пройди тест →`;
-
     app.innerHTML = `
       <div class="screen result-screen">
         <div class="result-icon">🪄</div>
@@ -211,84 +220,12 @@ function renderResultScreen() {
           </div>
           <p class="result-description">${result.description}</p>
         </div>
-        <button class="btn btn-share" id="btn-share">
-          <span class="btn-share-icon">📤</span>
-          Поделиться результатом
-        </button>
         <button class="btn btn-secondary btn-restart" id="btn-restart">Пройти заново</button>
       </div>
     `;
 
-    // Кнопка "Поделиться результатом" через VK API
-    document.getElementById("btn-share").addEventListener("click", () => {
-      shareToVK(shareText);
-    });
-
     // Кнопка "Пройти заново"
     document.getElementById("btn-restart").addEventListener("click", resetTest);
-  }
-}
-
-// === Поделиться через VK API ===
-async function shareToVK(text) {
-  const btn = document.getElementById("btn-share");
-  if (!btn) return;
-
-  // Показываем состояние загрузки
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-share-icon">⏳</span> Готовим изображение...';
-
-  try {
-    // 1. Генерируем изображение с результатом
-    const imageBlob = await generateResultImage(state.result);
-
-    btn.innerHTML = '<span class="btn-share-icon">⏳</span> Загружаем в ВК...';
-
-    // 2. Загружаем изображение на сервер ВК и получаем attachment
-    const { attachment } = await uploadAndGetAttachment(imageBlob);
-
-    // 3. Открываем нативный диалог репоста ВКонтакте с прикреплённым фото
-    //    В этом диалоге пользователь видит изображение и может:
-    //    - опубликовать на своей стене
-    //    - отправить в личные сообщения
-    //    - отправить в беседу
-    //    Изображение будет автоматически прикреплено к сообщению!
-    btn.innerHTML = '<span class="btn-share-icon">📤</span> Открываем ВКонтакте...';
-
-    window.open(
-      `https://vk.com/repost.php?object=${attachment}`,
-      "_blank",
-      "width=650,height=450"
-    );
-  } catch (error) {
-    console.error("VK Share error:", error);
-    // Если VK API не сработал — даём пользователю скачать изображение
-    try {
-      const imageBlob = await generateResultImage(state.result);
-      const url = URL.createObjectURL(imageBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "volshebnaya-palochka.png";
-      a.click();
-      URL.revokeObjectURL(url);
-
-      // И открываем VK Share с текстом
-      const encodedText = encodeURIComponent(
-        `🪄 Олливандер выдал мне волшебную палочку: ${state.result.title}!\n\nА какая палочка достанется тебе? Пройди тест → ${window.location.href}`
-      );
-      window.open(
-        `https://vk.com/share.php?url=${encodeURIComponent(window.location.href)}&title=${encodedText}`,
-        "_blank",
-        "width=650,height=450"
-      );
-    } catch (e) {
-      alert("Не удалось поделиться результатом. Попробуйте ещё раз.");
-    }
-  } finally {
-    // Восстанавливаем кнопку
-    btn.disabled = false;
-    btn.innerHTML = originalText;
   }
 }
 
