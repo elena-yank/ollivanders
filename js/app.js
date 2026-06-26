@@ -148,19 +148,40 @@ async function sendResultToUser() {
       return;
     }
 
-    // 2. Делаем скриншот результата (центральная часть в эллипсе, без кнопок)
-    let attachment = null;
+    // 2. Пытаемся сделать скриншот через Canvas (без html2canvas)
+    let imageBlob = null;
     try {
-      const screenshotBlob = await captureResultScreenshot(state.result);
-      const uploadResult = await uploadAndGetAttachment(screenshotBlob);
-      attachment = uploadResult.attachment;
-      console.log("Скриншот результата загружен в ВК:", attachment);
+      // Сначала пробуем новый метод с фоновым изображением и эллипсом
+      imageBlob = await captureResultScreenshot(state.result);
+      console.log("[sendResult] Скриншот через Canvas создан, размер:", imageBlob.size);
     } catch (screenshotError) {
-      // Если скриншот не удался — продолжаем без него
-      console.log("Не удалось создать/загрузить скриншот:", screenshotError);
+      console.warn("[sendResult] captureResultScreenshot не сработал:", screenshotError);
+      // Fallback: используем старый генератор изображения
+      try {
+        imageBlob = await generateResultImage(state.result);
+        console.log("[sendResult] Запасное изображение создано, размер:", imageBlob.size);
+      } catch (fallbackError) {
+        console.error("[sendResult] Оба метода создания изображения не сработали:", fallbackError);
+        alert("Ошибка создания изображения: " + fallbackError.message);
+      }
     }
 
-    // 3. Формируем текст сообщения
+    // 3. Загружаем изображение на сервер ВК (если удалось создать)
+    let attachment = null;
+    if (imageBlob) {
+      try {
+        const uploadResult = await uploadAndGetAttachment(imageBlob);
+        attachment = uploadResult.attachment;
+        console.log("[sendResult] Изображение загружено в ВК, attachment:", attachment);
+      } catch (uploadError) {
+        console.error("[sendResult] Ошибка загрузки изображения в ВК:", uploadError);
+        alert("Ошибка загрузки изображения в ВК: " + uploadError.message);
+      }
+    } else {
+      console.warn("[sendResult] Изображение не создано — отправляем без attachment");
+    }
+
+    // 4. Формируем текст сообщения
     const message = `🪄 Олливандер выбрал для тебя волшебную палочку!\n\n` +
       `✨ ${state.result.title}\n` +
       `📏 Длина: ${state.result.length}\n` +
@@ -168,12 +189,17 @@ async function sendResultToUser() {
       `${state.result.description}\n\n` +
       `Пройти тест: ${window.location.href}`;
 
-    // 4. Отправляем сообщение с прикреплённым скриншотом
-    await sendMessageToUser(userInfo.id, message, attachment);
-    console.log("Результат отправлен в ЛС пользователю", userInfo.id, "с attachment:", attachment);
+    // 5. Отправляем сообщение с прикреплённым скриншотом
+    try {
+      await sendMessageToUser(userInfo.id, message, attachment);
+      console.log("[sendResult] Сообщение отправлено пользователю", userInfo.id, "с attachment:", attachment);
+    } catch (sendError) {
+      console.error("[sendResult] Ошибка отправки сообщения:", sendError);
+      alert("Ошибка отправки сообщения: " + sendError.message);
+    }
   } catch (error) {
-    // Если не сработало — не критично, пользователь всё равно видит результат на экране
-    console.log("Не удалось отправить ЛС (возможно, нет диалога с группой):", error);
+    console.error("[sendResult] Общая ошибка:", error);
+    alert("Общая ошибка: " + error.message);
   }
 }
 
