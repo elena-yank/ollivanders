@@ -1,18 +1,18 @@
 // vk-api.js — работа с VK API: загрузка изображений, отправка сообщений
 //
-// Для загрузки изображений используется серверный прокси (/api/upload),
-// так как VK upload серверы не поддерживают CORS.
-//
-// Для отправки сообщений используется VK Bridge (VKWebAppCallAPIMethod),
-// который идёт через нативный клиент ВК и не имеет CORS-проблем.
+// VK API вызовы идут через VK Bridge (VKWebAppCallAPIMethod) — он работает
+// через нативный клиент ВК и не имеет CORS-проблем.
 // Если VK Bridge недоступен — fallback на JSONP.
+//
+// Загрузка изображений: получаем upload URL через VK Bridge, загружаем файл
+// через XHR с FormData. Если CORS блокирует — фото не прикрепится, но
+// сообщение отправится без attachment.
 import { VK_CONFIG } from "./vk-config.js";
 
 /**
  * Вызов VK API метода через VK Bridge или JSONP
  */
 function callVkApi(method, params = {}) {
-  // VK Bridge — нет CORS, работает внутри приложения ВК
   if (typeof vkBridge !== "undefined") {
     return vkBridge
       .send("VKWebAppCallAPIMethod", {
@@ -38,7 +38,7 @@ function callVkApi(method, params = {}) {
       });
   }
 
-  // Fallback: JSONP (для разработки вне ВК)
+  // Fallback: JSONP
   return new Promise((resolve, reject) => {
     const callbackName = `vk_callback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const queryParams = new URLSearchParams({
@@ -71,47 +71,69 @@ function callVkApi(method, params = {}) {
 }
 
 /**
- * Конвертирует Blob в base64 (data URI)
- */
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Failed to read blob"));
-    reader.readAsDataURL(blob);
-  });
-}
-
-/**
- * Загружает изображение в ВК через серверный прокси
+ * Загружает изображение в ВК
  *
- * VK upload серверы не поддерживают CORS, поэтому браузер не может
- * загружать файлы напрямую. Прокси (server/upload-proxy.js) принимает
- * base64, загружает файл на VK сервер-сервер и возвращает attachment.
+ * 1. Получаем upload URL через VK Bridge
+ * 2. Загружаем файл через XHR (может не сработать из-за CORS)
+ * 3. Сохраняем фото
  */
 export async function uploadAndGetAttachment(imageBlob) {
-  const base64 = await blobToBase64(imageBlob);
-
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: base64 }),
+  // 1. Получаем upload server
+  const uploadServer = await callVkApi("photos.getMessagesUploadServer", {
+    group_id: VK_CONFIG.groupId,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(
-      `Upload proxy error (${response.status}): ${errorData?.error || response.statusText}`
-    );
+  // 2. Загружаем файл через XHR
+  const formData = new FormData();
+  formData.append("photo", imageBlob, "result.png");
+
+  const uploadResult = await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadServer.upload_url, true);
+    xhr.responseType = "text";
+
+    const timer = setTimeout(() => {
+      xhr.abort();
+      reject(new Error("Upload timeout"));
+    }, 30000);
+
+    xhr.onload = function () {
+      clearTimeout(timer);
+      try {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      } catch (e) {
+        reject(new Error("Failed to parse upload response: " + e.message));
+      }
+    };
+
+    xhr.onerror = function () {
+      clearTimeout(timer);
+      reject(new Error("XHR upload failed (CORS)"));
+    };
+
+    xhr.send(formData);
+  });
+
+  if (uploadResult.error) {
+    throw new Error(`VK upload error: ${uploadResult.error}`);
   }
 
-  const result = await response.json();
+  // 3. Сохраняем фото
+  const savedPhotos = await callVkApi("photos.saveMessagesPhoto", {
+    group_id: VK_CONFIG.groupId,
+    photo: uploadResult.photo,
+    server: uploadResult.server,
+    hash: uploadResult.hash,
+  });
 
-  if (!result.success) {
-    throw new Error(`Upload proxy error: ${result.error}`);
-  }
+  const photo = Array.isArray(savedPhotos) ? savedPhotos[0] : savedPhotos;
+  const attachment = `photo${photo.owner_id}_${photo.id}`;
 
-  return { photo: result.photo, attachment: result.attachment };
+  return { photo, attachment };
 }
 
 /**
