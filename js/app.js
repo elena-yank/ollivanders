@@ -127,7 +127,10 @@ function finishTest() {
   render();
   saveToLocalStorage();
   // Отправляем результат в ЛС пользователю (если он в ВК)
-  sendResultToUser();
+  // Ждём немного, чтобы DOM и фоновое изображение успели отрисоваться
+  setTimeout(() => {
+    sendResultToUser();
+  }, 800);
 }
 
 /**
@@ -148,9 +151,9 @@ async function sendResultToUser() {
     // 2. Делаем скриншот результата (центральная часть в эллипсе, без кнопок)
     let attachment = null;
     try {
-      const screenshotBlob = await captureResultScreenshot();
-      const result = await uploadAndGetAttachment(screenshotBlob);
-      attachment = result.attachment;
+      const screenshotBlob = await captureResultScreenshot(state.result);
+      const uploadResult = await uploadAndGetAttachment(screenshotBlob);
+      attachment = uploadResult.attachment;
       console.log("Скриншот результата загружен в ВК:", attachment);
     } catch (screenshotError) {
       // Если скриншот не удался — продолжаем без него
