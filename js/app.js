@@ -6,6 +6,34 @@ import { sendMessageToUser, uploadAndGetAttachment } from "./vk-api.js";
 import { getVkUserInfo } from "./vk-bridge.js";
 import { captureResultScreenshot } from "./screenshot.js";
 
+/**
+ * Показывает кастомное модальное окно вместо alert()
+ * @param {string} title - Заголовок
+ * @param {string} bodyHtml - HTML-содержимое тела (поддерживает ссылки)
+ */
+function showModal(title, bodyHtml) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+
+  overlay.innerHTML = `
+    <div class="modal-window">
+      <div class="modal-title">${title}</div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-actions">
+        <button class="btn btn-primary modal-close-btn">OK</button>
+      </div>
+    </div>
+  `;
+
+  const close = () => overlay.remove();
+  overlay.querySelector(".modal-close-btn").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+
+  document.body.appendChild(overlay);
+}
+
 // === Состояние ===
 const state = {
   currentQuestionIndex: 0,
@@ -212,12 +240,12 @@ async function sendResultToUser() {
 
       // Ошибка 901 — пользователь не разрешил группе отправлять сообщения
       if (sendError.message === "VK_PERMISSION_ERROR") {
-        alert(
-          "📬 Для получения результата в сообщениях необходимо разрешить " +
-          "сообществу «Мир Гарри Поттера» отправлять вам сообщения.\n\n" +
+        showModal(
+          "📬 Требуется разрешение",
+          "Для получения результата в сообщениях необходимо разрешить " +
+          "сообществу «<a href=\"https://vk.com/club127125958\" target=\"_blank\">Мир Гарри Поттера</a>» отправлять вам сообщения.<br><br>" +
           "👉 Перейдите в настройки сообщества и включите разрешение на отправку сообщений, " +
-          "затем пройдите тест заново.\n\n" +
-          "Ссылка на сообщество: https://vk.com/club127125958"
+          "затем пройдите тест заново."
         );
       } else {
         alert("Ошибка отправки сообщения: " + sendError.message);
