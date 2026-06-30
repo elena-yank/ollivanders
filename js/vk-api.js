@@ -32,12 +32,25 @@ function callVkApi(method, params = {}) {
       })
       .then((response) => {
         if (response.response) return response.response;
-        if (response.error) throw new Error(`VK API Error [${method}]: ${response.error.error_msg}`);
+        if (response.error) {
+          // Ошибка 901 — пользователь не разрешил группе отправлять сообщения
+          if (response.error.error_code === 901) {
+            throw new Error("VK_PERMISSION_ERROR");
+          }
+          throw new Error(`VK API Error [${method}]: ${response.error.error_msg}`);
+        }
         return response;
       })
       .catch((bridgeError) => {
+        // Проверяем код ошибки 901 — пользователь не разрешил группе отправлять сообщения
+        const errorCode = bridgeError?.error_data?.error_code;
+        if (errorCode === 901) {
+          throw new Error("VK_PERMISSION_ERROR");
+        }
+
         // Если ошибка связана с инициализацией — не паникуем, просто сообщаем
         const errorMsg =
+          bridgeError?.error_data?.error_msg ||
           bridgeError?.error_data?.message ||
           bridgeError?.error_msg ||
           bridgeError?.message ||
@@ -67,7 +80,12 @@ function callVkApi(method, params = {}) {
       delete window[callbackName];
       document.head.removeChild(script);
       if (response.error) {
-        reject(new Error(`VK API Error [${method}]: ${response.error.error_msg}`));
+        // Ошибка 901 — пользователь не разрешил группе отправлять сообщения
+        if (response.error.error_code === 901) {
+          reject(new Error("VK_PERMISSION_ERROR"));
+        } else {
+          reject(new Error(`VK API Error [${method}]: ${response.error.error_msg}`));
+        }
       } else {
         resolve(response.response);
       }

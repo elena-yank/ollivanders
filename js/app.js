@@ -209,7 +209,19 @@ async function sendResultToUser() {
       console.log("[sendResult] Сообщение отправлено пользователю", userInfo.id);
     } catch (sendError) {
       console.error("[sendResult] Ошибка отправки сообщения:", sendError);
-      alert("Ошибка отправки сообщения: " + sendError.message);
+
+      // Ошибка 901 — пользователь не разрешил группе отправлять сообщения
+      if (sendError.message === "VK_PERMISSION_ERROR") {
+        alert(
+          "📬 Для получения результата в сообщениях необходимо разрешить " +
+          "сообществу «Мир Гарри Поттера» отправлять вам сообщения.\n\n" +
+          "👉 Перейдите в настройки сообщества и включите разрешение на отправку сообщений, " +
+          "затем пройдите тест заново.\n\n" +
+          "Ссылка на сообщество: https://vk.com/club127125958"
+        );
+      } else {
+        alert("Ошибка отправки сообщения: " + sendError.message);
+      }
     }
   } catch (error) {
     console.error("[sendResult] Общая ошибка:", error);
