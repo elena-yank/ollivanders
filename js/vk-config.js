@@ -4,10 +4,10 @@
 
 export const VK_CONFIG = {
   // ID группы ВКонтакте
-  groupId: "229621082",
+  groupId: "127125958",
   // Токен доступа группы (нужны права: photos, wall, groups)
   // Получить можно в Управление сообществом → Работа с API → Ключи доступа
-  accessToken: "vk1.a.77yAg6y5BTzW3nhh6J1snOGGVPr445DZMEcGbufcnxoAuxGTTsUpm68ApsEE9PzPNFgMMnY9AfD42gzYLQinD_nAvFIWYyEvNNwOJhvz-jrC5ZjCuLCM0PN95fa0wuJQOBkV8h9nURiFQ_CLsvwUDnCyHphdRB3inhjaXWeCWwneclKRhw68JvpLYtsjLrW-lD5u54i-7WMbZzRR-69B9g",
+  accessToken: "vk1.a.weKH2nZUoy52bD6UWdYUNeh_O7fdlrlONWqOjPtvQxMi_vQw0Bis3rZdbz2kdNxbUtYrRXTUfWolW9nT5eidUCAv07nfkb2Q9nwPtxKkAiQqYhlP30f-hFMSu9kp3gWHkntmJAWOx7pxWB8pOqbx0BRiq5HuO-uuJpQV55zthBabKTzxWH3-9mEyXrrEyJdKQWVDSHEZm1dTvSIDQmHwbw",
   // Версия API
   apiVersion: "5.199",
 };
