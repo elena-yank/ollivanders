@@ -317,10 +317,24 @@ function loadFromLocalStorage() {
 
 // === Инициализация VK Bridge (для каталога ВКонтакте) ===
 function initVKBridge() {
-  if (window.vkBridge) {
-    // Отправляем событие инициализации нативному клиенту VK
-    vkBridge.send("VKWebAppInit", {});
+  if (!window.vkBridge) {
+    console.log("VK Bridge не доступен — приложение запущено вне ВК");
+    return;
   }
+
+  // Проверяем, есть ли параметры запуска VK в URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasVkParams = urlParams.has("vk_app_id");
+
+  if (!hasVkParams) {
+    console.log("Нет параметров запуска VK — VK Bridge не инициализируем");
+    return;
+  }
+
+  // Отправляем событие инициализации нативному клиенту VK
+  vkBridge.send("VKWebAppInit", {}).catch((error) => {
+    console.warn("VK Bridge init warning (некритично):", error);
+  });
 }
 
 // === Инициализация ===

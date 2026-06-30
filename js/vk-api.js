@@ -14,6 +14,13 @@ import { VK_CONFIG } from "./vk-config.js";
  */
 function callVkApi(method, params = {}) {
   if (typeof vkBridge !== "undefined") {
+    // Проверяем, есть ли параметры запуска VK (без них VK Bridge не работает)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has("vk_app_id")) {
+      console.warn(`VK Bridge доступен, но нет параметров запуска VK — пропускаем API вызов ${method}`);
+      return Promise.reject(new Error("VK Bridge не инициализирован (нет параметров запуска)"));
+    }
+
     return vkBridge
       .send("VKWebAppCallAPIMethod", {
         method: method,
@@ -29,11 +36,18 @@ function callVkApi(method, params = {}) {
         return response;
       })
       .catch((bridgeError) => {
+        // Если ошибка связана с инициализацией — не паникуем, просто сообщаем
         const errorMsg =
           bridgeError?.error_data?.message ||
           bridgeError?.error_msg ||
           bridgeError?.message ||
           (typeof bridgeError === "string" ? bridgeError : JSON.stringify(bridgeError));
+        
+        // Проверяем, не связана ли ошибка с отсутствием инициализации
+        if (errorMsg.includes("currentAppId") || errorMsg.includes("undefined")) {
+          console.warn(`VK Bridge: метод ${method} недоступен (bridge не инициализирован)`);
+        }
+        
         throw new Error(`VK API Error [${method}]: ${errorMsg}`);
       });
   }
