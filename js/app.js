@@ -201,7 +201,7 @@ async function sendResultToUser() {
       `📏 Длина: ${state.result.length}\n` +
       `🔄 Упругость: ${state.result.flexibility}\n\n` +
       `${state.result.description}\n\n` +
-      `Пройти тест: https://vk.com/app54654657`;
+      `Пройти тест: https://vk.com/app54660044`;
 
     // 4. Отправляем сообщение без скриншота
     try {
