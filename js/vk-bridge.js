@@ -9,10 +9,12 @@ function isInVkFrame() {
   try {
     return window.self !== window.top &&
       (window.location.href.includes("vk.com") ||
-       document.referrer.includes("vk.com"));
+       window.location.href.includes("vk.ru") ||
+       document.referrer.includes("vk.com") ||
+       document.referrer.includes("vk.ru"));
   } catch (e) {
     // Cross-origin: значит мы во фрейме, но с другого домена
-    // Это нормально для VK — они грузят с vk.com
+    // Это нормально для VK — они грузят с vk.com или vk.ru
     return true;
   }
 }

@@ -229,7 +229,7 @@ async function sendResultToUser() {
       `📏 Длина: ${state.result.length}\n` +
       `🔄 Упругость: ${state.result.flexibility}\n\n` +
       `${state.result.description}\n\n` +
-      `Пройти тест: https://vk.com/app54660044`;
+      `Пройти тест: https://vk.ru/app54660044`;
 
     // 4. Отправляем сообщение без скриншота
     try {
@@ -243,7 +243,7 @@ async function sendResultToUser() {
         showModal(
           "📬 Требуется разрешение",
           "Для получения результата в сообщениях необходимо разрешить " +
-          "сообществу «<a href=\"https://vk.com/club127125958\" target=\"_blank\">Мир Гарри Поттера</a>» отправлять вам сообщения.<br><br>" +
+          "сообществу «<a href=\"https://vk.ru/club127125958\" target=\"_blank\">Мир Гарри Поттера</a>» отправлять вам сообщения.<br><br>" +
           "👉 Перейдите в настройки сообщества и включите разрешение на отправку сообщений, " +
           "затем пройдите тест заново."
         );
